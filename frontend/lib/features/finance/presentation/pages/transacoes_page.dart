@@ -21,18 +21,38 @@ class TransacoesPage extends StatelessWidget {
           children: [
             _Header(),
             Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                itemCount: _transactions.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (context, index) =>
-                    _TransactionTile(tx: _transactions[index]),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth > 800) {
+                    return GridView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3, // 3 cards por linha
+                        crossAxisSpacing: 16, // Espaço horizontal
+                        mainAxisSpacing: 16, // Espaço vertical
+                        mainAxisExtent: 90, // Altura fixa com respiro para evitar overflow
+                      ),
+                      itemCount: _transactions.length,
+                      itemBuilder: (context, index) =>
+                          _TransactionTile(tx: _transactions[index]),
+                    );
+                  } 
+                  else {
+                    return ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      itemCount: _transactions.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) =>
+                          _TransactionTile(tx: _transactions[index]),
+                    );
+                  }
+                },
               ),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: _BottomNav(currentIndex: 1),
+      bottomNavigationBar: const _BottomNav(currentIndex: 1),
     );
   }
 }
@@ -53,11 +73,11 @@ class _Header extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Histórico',
             style: TextStyle(
               fontSize: 13,
-              color: const Color(0xFF2563EB),
+              color: Color(0xFF2563EB),
               fontWeight: FontWeight.w600,
               letterSpacing: 1.1,
             ),
@@ -85,12 +105,10 @@ class _TransactionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isPositive = tx.amount > 0;
     final amountColor = isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
-    final amountStr = isPositive
-        ? '+ R\$ ${tx.amount.toStringAsFixed(2).replaceAll('.', ',')}'
-        : '- R\$ ${tx.amount.abs().toStringAsFixed(2).replaceAll('.', ',')}';
+    final amountStr = isPositive ? '+ R\$ ${tx.amount.toStringAsFixed(2).replaceAll('.', ',')}' : '- R\$ ${tx.amount.abs().toStringAsFixed(2).replaceAll('.', ',')}';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
@@ -113,10 +131,11 @@ class _TransactionTile extends StatelessWidget {
             ),
             child: Icon(tx.icon, color: const Color(0xFF2563EB), size: 22),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   tx.title,
@@ -125,15 +144,20 @@ class _TransactionTile extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF1A2340),
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
                   tx.subtitle,
                   style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Text(
             amountStr,
             style: TextStyle(
@@ -141,6 +165,8 @@ class _TransactionTile extends StatelessWidget {
               fontWeight: FontWeight.bold,
               color: amountColor,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -161,7 +187,6 @@ class _BottomNav extends StatelessWidget {
       unselectedItemColor: Colors.grey[400],
       backgroundColor: Colors.white,
       elevation: 8,
-      // showLabels: false,
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Home'),
         BottomNavigationBarItem(icon: Icon(Icons.list_alt_rounded), label: 'Transações'),

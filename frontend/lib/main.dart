@@ -20,7 +20,7 @@ class MeuAppSimulados extends StatelessWidget {
       //     child: Text('Modelos de Domínio Implementados!'),
       //   ),
       // ),
-      home: DashboardPage(),
+      home: TransacoesPage(),
     );
   }
 }
