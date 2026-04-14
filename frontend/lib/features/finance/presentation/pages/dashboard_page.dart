@@ -25,7 +25,7 @@ class DashboardPage extends StatelessWidget {
           ),
         ),
       ),
-      bottomNavigationBar: _BottomNav(currentIndex: 0),
+      bottomNavigationBar: const _BottomNav(currentIndex: 0),
     );
   }
 }
@@ -85,7 +85,7 @@ class _SavingsCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
@@ -93,12 +93,12 @@ class _SavingsCard extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFF2563EB),
+              color: Color(0xFF2563EB),
               letterSpacing: 1.2,
             ),
           ),
-          const SizedBox(height: 6),
-          const Text(
+          SizedBox(height: 6),
+          Text(
             'R\$ 10.300,00',
             style: TextStyle(
               fontSize: 28,
@@ -135,7 +135,7 @@ class _WeeklyChart extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            height: 120,
+            height: 140, // <-- Altura corrigida para evitar o overflow
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -181,10 +181,10 @@ class _WeeklyChart extends StatelessWidget {
 class _HabitsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'HÁBITOS EM FOCO',
           style: TextStyle(
             fontSize: 11,
@@ -193,12 +193,16 @@ class _HabitsSection extends StatelessWidget {
             letterSpacing: 1.2,
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         Row(
           children: [
-            Expanded(child: _HabitTile(icon: Icons.smoke_free, label: 'Sem fumar', days: 8)),
-            const SizedBox(width: 12),
-            Expanded(child: _HabitTile(icon: Icons.no_drinks, label: 'Sem álcool', days: 12)),
+            Expanded(
+                child: _HabitTile(
+                    icon: Icons.smoke_free, label: 'Sem fumar', days: 8)),
+            SizedBox(width: 12),
+            Expanded(
+                child: _HabitTile(
+                    icon: Icons.no_drinks, label: 'Sem álcool', days: 12)),
           ],
         ),
       ],
@@ -268,12 +272,15 @@ class _BottomNav extends StatelessWidget {
       unselectedItemColor: Colors.grey[400],
       backgroundColor: Colors.white,
       elevation: 8,
-      // showLabels: false,
       items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Home'),
-        BottomNavigationBarItem(icon: Icon(Icons.list_alt_rounded), label: 'Transações'),
-        BottomNavigationBarItem(icon: Icon(Icons.pie_chart_rounded), label: 'Gráficos'),
-        BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Perfil'),
+        BottomNavigationBarItem(
+            icon: Icon(Icons.home_rounded), label: 'Home'),
+        BottomNavigationBarItem(
+            icon: Icon(Icons.list_alt_rounded), label: 'Transações'),
+        BottomNavigationBarItem(
+            icon: Icon(Icons.pie_chart_rounded), label: 'Gráficos'),
+        BottomNavigationBarItem(
+            icon: Icon(Icons.person_rounded), label: 'Perfil'),
       ],
     );
   }
