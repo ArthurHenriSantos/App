@@ -1,6 +1,5 @@
-import 'package:app/features/finance/presentation/pages/dashboard_page.dart';
-import 'package:app/features/finance/presentation/pages/metas_page.dart';
-import 'package:app/features/finance/presentation/pages/transacoes_page.dart';
+import 'package:app/router/app_router.dart';
+import 'package:app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -12,15 +11,13 @@ class MeuAppSimulados extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'Koin',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      // home: const Scaffold(
-      //   body: Center(
-      //     child: Text('Modelos de Domínio Implementados!'),
-      //   ),
-      // ),
-      home: TransacoesPage(),
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.light, // Pode ser alterado para ThemeMode.system ou ThemeMode.dark
+      routerConfig: AppRouter.roteador,
     );
   }
 }

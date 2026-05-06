@@ -1,107 +1,97 @@
+import 'package:app/features/goal/domain/entities/goal.dart';
+import 'package:app/models/enums.dart';
+import 'package:app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
 class MetasPage extends StatelessWidget {
-  const MetasPage({super.key});
+  final List<Goal> goals;
 
-  static const _goals = [
-    _Goal('VIAGEM (1 ANO)', 5200, 8000, Color(0xFF2563EB)),
-    _Goal('CARRO (5 ANOS)', 31800, 100000, Color(0xFF0891B2)),
-    _Goal('BÔNUS', 50, 50, Color(0xFF16A34A)),
-  ];
+  const MetasPage({super.key, required this.goals});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FA),
-      body: SafeArea(
-        child: Column(
+      appBar: AppBar(
+        title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _Header(),
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                itemCount: _goals.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (context, index) =>
-                    _GoalCard(goal: _goals[index]),
+            Text(
+              'Seu Progresso',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppTheme.primary,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.1,
+              ),
+            ),
+            Text(
+              'Minhas Metas',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textDark,
               ),
             ),
           ],
         ),
-      ),
-      bottomNavigationBar: _BottomNav(currentIndex: 2),
-    );
-  }
-}
-
-class _Goal {
-  final String title;
-  final double current;
-  final double total;
-  final Color color;
-  const _Goal(this.title, this.current, this.total, this.color);
-
-  double get progress => (current / total).clamp(0.0, 1.0);
-  bool get completed => current >= total;
-}
-
-class _Header extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Seu Progresso',
-            style: TextStyle(
-              fontSize: 13,
-              color: const Color(0xFF2563EB),
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.1,
-            ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline, color: AppTheme.primary, size: 28),
+            onPressed: () {},
           ),
-          const SizedBox(height: 2),
-          const Text(
-            'Metas',
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1A2340),
-            ),
-          ),
+          const SizedBox(width: 12),
         ],
+      ),
+      body: SafeArea(
+        child: goals.isEmpty
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.flag_outlined, size: 64, color: AppTheme.textMutedLight.withOpacity(0.5)),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Nenhuma meta cadastrada.',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                itemCount: goals.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 14),
+                itemBuilder: (context, index) => _GoalCard(goal: goals[index]),
+              ),
       ),
     );
   }
 }
 
 class _GoalCard extends StatelessWidget {
-  final _Goal goal;
-  const _GoalCard({super.key, required this.goal});
+  final Goal goal;
+  const _GoalCard({required this.goal});
 
   String _fmt(double v) =>
       'R\$ ${v.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]}.')}';
 
   @override
   Widget build(BuildContext context) {
-    final isCompleted = goal.completed;
+    final progress = (goal.currentAmount / goal.targetAmount).clamp(0.0, 1.0);
+    final isCompleted = goal.status == GoalStatus.completed || progress >= 1.0;
+    final color = isCompleted ? AppTheme.accent : AppTheme.primary;
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isCompleted
-            ? const Color(0xFFDCFCE7)
-            : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: isCompleted
-            ? Border.all(color: const Color(0xFF16A34A).withOpacity(0.4))
-            : null,
+        color: isCompleted ? const Color(0xFFECFDF5) : Colors.white, // Light green for completed
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isCompleted ? AppTheme.accent.withOpacity(0.25) : Colors.black.withOpacity(0.04),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -114,88 +104,95 @@ class _GoalCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                goal.title,
+                goal.name.toUpperCase(),
                 style: TextStyle(
                   fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: goal.color,
+                  fontWeight: FontWeight.bold,
+                  color: color,
                   letterSpacing: 1.2,
                 ),
               ),
               if (isCompleted)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF16A34A),
+                    color: AppTheme.accent,
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Text(
-                    'Concluído',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check, color: Colors.white, size: 10),
+                      SizedBox(width: 4),
+                      Text(
+                        'Concluído',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
             ],
           ),
+          const SizedBox(height: 16),
           if (isCompleted) ...[
-            const SizedBox(height: 10),
-            Text(
-              '+ ${_fmt(goal.current)}',
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF16A34A),
-              ),
+            Row(
+              children: [
+                Text(
+                  _fmt(goal.targetAmount),
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textDark,
+                  ),
+                ),
+                // Uso de Spacer para empurrar o ícone para a direita
+                const Spacer(),
+                const Icon(Icons.stars_rounded, color: AppTheme.warning, size: 28),
+              ],
             ),
           ] else ...[
-            const SizedBox(height: 12),
+            // Barra de progresso com ClipRRect
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: LinearProgressIndicator(
-                value: goal.progress,
+                value: progress,
                 minHeight: 8,
-                backgroundColor: goal.color.withOpacity(0.12),
-                color: goal.color,
+                backgroundColor: color.withOpacity(0.12),
+                color: color,
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              '${_fmt(goal.current)} / ${_fmt(goal.total)}',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[600],
-              ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${_fmt(goal.currentAmount)} poupados',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textDark,
+                  ),
+                ),
+                // Uso de Flexible para evitar que a meta ultrapasse o tamanho da linha
+                Flexible(
+                  child: Text(
+                    'meta: ${_fmt(goal.targetAmount)}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppTheme.textMutedLight,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
           ],
         ],
       ),
-    );
-  }
-}
-
-class _BottomNav extends StatelessWidget {
-  final int currentIndex;
-  const _BottomNav({required this.currentIndex});
-
-  @override
-  Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      currentIndex: currentIndex,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: const Color(0xFF2563EB),
-      unselectedItemColor: Colors.grey[400],
-      backgroundColor: Colors.white,
-      elevation: 8,
-      // showLabels: false,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Home'),
-        BottomNavigationBarItem(icon: Icon(Icons.list_alt_rounded), label: 'Transações'),
-        BottomNavigationBarItem(icon: Icon(Icons.pie_chart_rounded), label: 'Gráficos'),
-        BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Perfil'),
-      ],
     );
   }
 }

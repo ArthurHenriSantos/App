@@ -1,5 +1,4 @@
 import 'package:app/models/enums.dart';
-import 'package:flutter/foundation.dart';
 
 class Goal {
   final String id;

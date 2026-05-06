@@ -1,5 +1,4 @@
 import 'package:app/models/enums.dart';
-import 'package:flutter/foundation.dart';
 
 class BankAccount {
   final String id;
