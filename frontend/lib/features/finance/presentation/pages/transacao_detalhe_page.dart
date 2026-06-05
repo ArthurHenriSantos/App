@@ -1,20 +1,77 @@
-import 'package:app/core/utils/mock_database.dart';
+import 'package:app/core/services/api_service.dart';
+import 'package:app/features/transaction/domain/entities/transaction.dart';
 import 'package:app/models/enums.dart';
 import 'package:app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-class TransactionDetailPage extends StatelessWidget {
+class TransactionDetailPage extends StatefulWidget {
   final String transactionId;
 
   const TransactionDetailPage({super.key, required this.transactionId});
 
   @override
-  Widget build(BuildContext context) {
-    final tx = MockDatabase.getTransactionById(transactionId);
+  State<TransactionDetailPage> createState() => _TransactionDetailPageState();
+}
 
-    // Caso a transação não seja encontrada
-    if (tx == null) {
+class _TransactionDetailPageState extends State<TransactionDetailPage> {
+  Transaction? _transaction;
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTransaction();
+  }
+
+  Future<void> _loadTransaction() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final tx = await ApiService().getTransactionById(widget.transactionId);
+      if (mounted) {
+        setState(() {
+          _transaction = tx;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Detalhes'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primary),
+          ),
+        ),
+      );
+    }
+
+    final tx = _transaction;
+
+    // Caso a transação não seja encontrada ou dê erro
+    if (tx == null || _errorMessage != null) {
       return Scaffold(
         appBar: AppBar(
           title: const Text('Detalhe'),
@@ -29,9 +86,9 @@ class TransactionDetailPage extends StatelessWidget {
             children: [
               const Icon(Icons.warning_amber_rounded, size: 64, color: AppTheme.danger),
               const SizedBox(height: 16),
-              const Text(
-                'Transação não encontrada.',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
+              Text(
+                _errorMessage ?? 'Transação não encontrada.',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
               ),
               const SizedBox(height: 20),
               ElevatedButton(

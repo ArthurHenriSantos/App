@@ -1,6 +1,6 @@
 import 'dart:ui';
-import 'package:app/core/utils/mock_database.dart';
-import 'package:app/features/transaction/domain/entities/transaction.dart';
+import 'package:app/core/services/api_service.dart';
+// Removed unused Transaction import
 import 'package:app/models/enums.dart';
 import 'package:app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -37,48 +37,70 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
       _isLoading = true;
     });
 
-    // Simula um pequeno delay para salvar
-    await Future.delayed(const Duration(milliseconds: 1000));
-
-    final amount = double.parse(_amountController.text.replaceAll(',', '.'));
-    final newTx = Transaction(
-      id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
-      bankAccountId: 'acc_wallet_01',
-      type: _selectedType,
-      amount: amount,
-      description: _descriptionController.text.trim(),
-      transactionDate: DateTime.now(),
-      creationDate: DateTime.now(),
-    );
-
-    MockDatabase.addTransaction(newTx);
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_outline_rounded, color: Colors.white),
-              const SizedBox(width: 12),
-              const Text(
-                'Transação adicionada com sucesso!',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ],
-          ),
-          backgroundColor: AppTheme.accent,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          margin: const EdgeInsets.all(20),
-          duration: const Duration(seconds: 2),
-        ),
+    try {
+      final amount = double.parse(_amountController.text.replaceAll(',', '.'));
+      await ApiService().createTransaction(
+        bankAccountId: 'acc_wallet_01',
+        type: _selectedType,
+        amount: amount,
+        description: _descriptionController.text.trim(),
       );
 
-      context.pop();
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_outline_rounded, color: Colors.white),
+                const SizedBox(width: 12),
+                const Text(
+                  'Transação adicionada com sucesso!',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            backgroundColor: AppTheme.accent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(20),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline_rounded, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Erro ao salvar transação: ${e.toString().replaceAll('Exception: ', '')}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppTheme.danger,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(20),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 

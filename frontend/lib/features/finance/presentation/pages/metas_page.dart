@@ -1,15 +1,139 @@
+import 'package:app/core/services/api_service.dart';
 import 'package:app/features/goal/domain/entities/goal.dart';
 import 'package:app/models/enums.dart';
 import 'package:app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
-class MetasPage extends StatelessWidget {
-  final List<Goal> goals;
+class MetasPage extends StatefulWidget {
+  const MetasPage({super.key});
 
-  const MetasPage({super.key, required this.goals});
+  @override
+  State<MetasPage> createState() => _MetasPageState();
+}
+
+class _MetasPageState extends State<MetasPage> {
+  List<Goal> _goals = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGoals();
+  }
+
+  Future<void> _loadGoals() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final goals = await ApiService().getGoals();
+      if (mounted) {
+        setState(() {
+          _goals = goals;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Seu Progresso',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.primary,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              Text(
+                'Minhas Metas',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textDark,
+                ),
+              ),
+            ],
+          ),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primary),
+          ),
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Seu Progresso',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.primary,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              Text(
+                'Minhas Metas',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textDark,
+                ),
+              ),
+            ],
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.cloud_off_rounded, size: 64, color: AppTheme.danger),
+                const SizedBox(height: 16),
+                Text(
+                  'Erro ao carregar metas:\n$_errorMessage',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Tentar Novamente'),
+                  onPressed: _loadGoals,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Column(
@@ -43,7 +167,7 @@ class MetasPage extends StatelessWidget {
         ],
       ),
       body: SafeArea(
-        child: goals.isEmpty
+        child: _goals.isEmpty
             ? Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -59,9 +183,9 @@ class MetasPage extends StatelessWidget {
               )
             : ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                itemCount: goals.length,
+                itemCount: _goals.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 14),
-                itemBuilder: (context, index) => _GoalCard(goal: goals[index]),
+                itemBuilder: (context, index) => _GoalCard(goal: _goals[index]),
               ),
       ),
     );

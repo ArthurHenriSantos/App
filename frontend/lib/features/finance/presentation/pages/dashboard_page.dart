@@ -1,20 +1,99 @@
+import 'package:app/core/services/api_service.dart';
 import 'package:app/features/auth/domain/entities/user.dart';
 import 'package:app/features/bank_account/domain/entities/bank_account.dart';
 import 'package:app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
-class DashboardPage extends StatelessWidget {
-  final User user;
-  final BankAccount account;
+class DashboardPage extends StatefulWidget {
+  const DashboardPage({super.key});
 
-  const DashboardPage({
-    super.key,
-    required this.user,
-    required this.account,
-  });
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  User? _user;
+  BankAccount? _account;
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final apiService = ApiService();
+      final user = await apiService.getMe();
+      final account = await apiService.getPrimaryAccount();
+
+      if (mounted) {
+        setState(() {
+          _user = user;
+          _account = account;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primary),
+          ),
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.cloud_off_rounded, size: 64, color: AppTheme.danger),
+                const SizedBox(height: 16),
+                Text(
+                  'Erro ao conectar à API:\n$_errorMessage',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Tentar Novamente'),
+                  onPressed: _loadData,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final user = _user!;
+    final account = _account!;
+    
     // Uso de MediaQuery para cálculo de espaçamento e tamanhos responsivos
     final mediaQuery = MediaQuery.of(context);
     final isCompact = mediaQuery.size.height < 700;

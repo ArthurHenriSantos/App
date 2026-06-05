@@ -21,7 +21,7 @@ class User {
     id: json['id'] as String,
     name: json['name'] as String,
     email: json['email'] as String,
-    password: json['password'] as String,
+    password: (json['password'] as String?) ?? '',
     gender: Gender.fromString(json['gender'] as String),
     creationDate: DateTime.parse(json['creationDate'] as String),
   );

@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:app/core/services/api_service.dart';
 import 'package:app/router/app_router.dart';
 import 'package:app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -33,40 +34,74 @@ class _LoginPageState extends State<LoginPage> {
       _isLoading = true;
     });
 
-    // Simular delay de 1.5 segundos para a autenticação premium
-    await Future.delayed(const Duration(milliseconds: 1500));
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-
-      // Alterar para autenticado e ir para a rota inicial protegida
-      AppRouter.isAuthenticated = true;
-
-      // Exibir feedback de sucesso elegante
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_rounded, color: Colors.white),
-              const SizedBox(width: 12),
-              Text(
-                'Bem-vindo de volta, ${_emailController.text.split('@')[0]}!',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ],
-          ),
-          backgroundColor: AppTheme.accent,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          margin: const EdgeInsets.all(20),
-          duration: const Duration(seconds: 2),
-        ),
+    try {
+      // Realiza a chamada de login na API FastAPI
+      final user = await ApiService().login(
+        _emailController.text.trim(),
+        _passwordController.text,
       );
 
-      // Navegar para o Dashboard
-      context.go(AppRoutes.dashboard);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+
+        // Alterar para autenticado e ir para a rota inicial protegida
+        AppRouter.isAuthenticated = true;
+
+        // Exibir feedback de sucesso elegante com o nome do usuário retornado
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white),
+                const SizedBox(width: 12),
+                Text(
+                  'Bem-vindo de volta, ${user.name}!',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            backgroundColor: AppTheme.accent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(20),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+
+        // Navegar para o Dashboard
+        context.go(AppRoutes.dashboard);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+
+        // Exibir feedback de erro elegante
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline_rounded, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Erro ao entrar: ${e.toString().replaceAll('Exception: ', '')}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppTheme.danger,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(20),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 

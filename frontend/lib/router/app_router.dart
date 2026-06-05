@@ -1,4 +1,4 @@
-import 'package:app/core/utils/mock_database.dart';
+// Removido MockDatabase import
 import 'package:app/features/auth/presentation/pages/login_page.dart';
 import 'package:app/features/finance/presentation/pages/dashboard_page.dart';
 import 'package:app/features/finance/presentation/pages/main_layout.dart';
@@ -61,10 +61,7 @@ class AppRouter {
               GoRoute(
                 path: AppRoutes.dashboard,
                 name: AppRoutes.nomeDashboard,
-                builder: (context, state) => DashboardPage(
-                  user: MockDatabase.currentUser,
-                  account: MockDatabase.currentAccount,
-                ),
+                builder: (context, state) => const DashboardPage(),
               ),
             ],
           ),
@@ -73,9 +70,7 @@ class AppRouter {
               GoRoute(
                 path: AppRoutes.transacoes,
                 name: AppRoutes.nomeTransacoes,
-                builder: (context, state) => TransacoesPage(
-                  transactions: MockDatabase.userTransactions,
-                ),
+                builder: (context, state) => const TransacoesPage(),
               ),
             ],
           ),
@@ -84,9 +79,7 @@ class AppRouter {
               GoRoute(
                 path: AppRoutes.metas,
                 name: AppRoutes.nomeMetas,
-                builder: (context, state) => MetasPage(
-                  goals: MockDatabase.userGoals,
-                ),
+                builder: (context, state) => const MetasPage(),
               ),
             ],
           ),

@@ -1,3 +1,4 @@
+import 'package:app/core/services/api_service.dart';
 import 'package:app/features/transaction/domain/entities/transaction.dart';
 import 'package:app/models/enums.dart';
 import 'package:app/router/app_router.dart';
@@ -6,18 +7,49 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class TransacoesPage extends StatefulWidget {
-  final List<Transaction> transactions;
-
-  const TransacoesPage({super.key, required this.transactions});
+  const TransacoesPage({super.key});
 
   @override
   State<TransacoesPage> createState() => _TransacoesPageState();
 }
 
 class _TransacoesPageState extends State<TransacoesPage> {
+  List<Transaction> _transactions = [];
+  bool _isLoading = true;
+  String? _errorMessage;
   String _searchQuery = '';
   TransactionType? _selectedTypeFilter;
   final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTransactions();
+  }
+
+  Future<void> _loadTransactions() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final txs = await ApiService().getTransactions();
+      if (mounted) {
+        setState(() {
+          _transactions = txs;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -27,8 +59,94 @@ class _TransacoesPageState extends State<TransacoesPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Histórico',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.primary,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              Text(
+                'Transações',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textDark,
+                ),
+              ),
+            ],
+          ),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primary),
+          ),
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Histórico',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.primary,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              Text(
+                'Transações',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textDark,
+                ),
+              ),
+            ],
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.cloud_off_rounded, size: 64, color: AppTheme.danger),
+                const SizedBox(height: 16),
+                Text(
+                  'Erro ao carregar transações:\n$_errorMessage',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Tentar Novamente'),
+                  onPressed: _loadTransactions,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     // Filtragem dinâmica local baseada nos estados locais
-    final filteredTransactions = widget.transactions.where((tx) {
+    final filteredTransactions = _transactions.where((tx) {
       final matchesSearch = tx.description.toLowerCase().contains(_searchQuery.toLowerCase());
       final matchesType = _selectedTypeFilter == null || tx.type == _selectedTypeFilter;
       return matchesSearch && matchesType;
@@ -176,7 +294,7 @@ class _TransacoesPageState extends State<TransacoesPage> {
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           await context.push(AppRoutes.novaTransacao);
-          setState(() {});
+          _loadTransactions();
         },
         backgroundColor: AppTheme.primary,
         elevation: 4,
