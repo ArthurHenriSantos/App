@@ -1,3 +1,5 @@
+import os
+import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import uuid
@@ -7,8 +9,52 @@ from app.schemas import (
 )
 
 class AppState:
+    def _get_db_path(self) -> str:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(current_dir)
+        return os.path.join(parent_dir, "state_persistence.json")
+
+    def save_state(self):
+        try:
+            data = {
+                "users": {uid: u.model_dump(mode='json') for uid, u in self.users.items()},
+                "accounts": {aid: acc.model_dump(mode='json') for aid, acc in self.accounts.items()},
+                "goals": {gid: g.model_dump(mode='json') for gid, g in self.goals.items()},
+                "transactions": [tx.model_dump(mode='json') for tx in self.transactions]
+            }
+            with open(self._get_db_path(), "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Erro ao salvar estado: {e}")
+
+    def load_state(self) -> bool:
+        db_path = self._get_db_path()
+        if not os.path.exists(db_path):
+            return False
+        try:
+            with open(db_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.users = {uid: User.model_validate(u) for uid, u in data.get("users", {}).items()}
+            self.accounts = {aid: BankAccount.model_validate(acc) for aid, acc in data.get("accounts", {}).items()}
+            self.goals = {gid: Goal.model_validate(g) for gid, g in data.get("goals", {}).items()}
+            self.transactions = [Transaction.model_validate(tx) for tx in data.get("transactions", [])]
+            return True
+        except Exception as e:
+            print(f"Erro ao carregar estado: {e}")
+            return False
+
     def __init__(self):
-        # Usamos datas relativas para que o mock sempre pareça atualizado
+        # Armazenamento OAuth2 em memória (estes dados não são persistidos)
+        # { auth_code: { "user_id": "...", "code_challenge": "...", "code_challenge_method": "...", "expires_at": ... } }
+        self.auth_codes: Dict[str, dict] = {}
+        # { refresh_token: { "user_id": "...", "client_id": "...", "expires_at": ... } }
+        self.refresh_tokens: Dict[str, dict] = {}
+
+        # Tentar carregar estado anterior
+        if self.load_state():
+            return
+
+        # Estado inicial padrão se não houver persistência
         now = datetime.now()
         
         self.users: Dict[str, User] = {
@@ -112,6 +158,56 @@ class AppState:
             )
         ]
 
+        self.save_state()
+
+    # --- Métodos OAuth2 ---
+    def create_auth_code(self, user_id: str, code_challenge: str, code_challenge_method: str) -> str:
+        code = f"auth_code_{uuid.uuid4().hex}"
+        self.auth_codes[code] = {
+            "user_id": user_id,
+            "code_challenge": code_challenge,
+            "code_challenge_method": code_challenge_method,
+            "expires_at": datetime.now() + timedelta(minutes=10)
+        }
+        return code
+
+    def validate_and_consume_auth_code(self, code: str) -> Optional[dict]:
+        auth_data = self.auth_codes.get(code)
+        if not auth_data:
+            return None
+        # Remove para uso único
+        del self.auth_codes[code]
+        # Verifica expiração
+        if auth_data["expires_at"] < datetime.now():
+            return None
+        return auth_data
+
+    def create_refresh_token(self, user_id: str, client_id: str) -> str:
+        token = f"refresh_token_{uuid.uuid4().hex}"
+        self.refresh_tokens[token] = {
+            "user_id": user_id,
+            "client_id": client_id,
+            "expires_at": datetime.now() + timedelta(days=30)
+        }
+        return token
+
+    def validate_and_consume_refresh_token(self, token: str) -> Optional[dict]:
+        refresh_data = self.refresh_tokens.get(token)
+        if not refresh_data:
+            return None
+        # Note: alguns servidores rotacionam refresh tokens. Para fins didáticos, mantemos ou removemos.
+        # Vamos remover o antigo para segurança de rotação
+        del self.refresh_tokens[token]
+        if refresh_data["expires_at"] < datetime.now():
+            return None
+        return refresh_data
+
+    def revoke_refresh_token(self, token: str) -> bool:
+        if token in self.refresh_tokens:
+            del self.refresh_tokens[token]
+            return True
+        return False
+
     # --- Métodos de Usuários ---
     def add_user(self, name: str, email: str, password: str, gender: Gender) -> Optional[User]:
         for u in self.users.values():
@@ -127,6 +223,7 @@ class AppState:
             creationDate=datetime.now()
         )
         self.users[user_id] = new_user
+        self.save_state()
         return new_user
 
     def update_user(self, user_id: str, name: Optional[str] = None, gender: Optional[Gender] = None) -> Optional[User]:
@@ -137,6 +234,7 @@ class AppState:
             user.name = name
         if gender is not None:
             user.gender = gender
+        self.save_state()
         return user
 
     # --- Métodos de Contas Bancárias ---
@@ -151,6 +249,7 @@ class AppState:
             currency=currency
         )
         self.accounts[acc_id] = new_acc
+        self.save_state()
         return new_acc
 
     def update_bank_account(self, acc_id: str, name: Optional[str] = None, type_: Optional[BankAccountType] = None, currency: Optional[Currency] = None) -> Optional[BankAccount]:
@@ -163,6 +262,7 @@ class AppState:
             account.type = type_
         if currency is not None:
             account.currency = currency
+        self.save_state()
         return account
 
     def delete_bank_account(self, acc_id: str) -> bool:
@@ -172,6 +272,7 @@ class AppState:
                 if goal.bankAccountId == acc_id:
                     goal.bankAccountId = None
             del self.accounts[acc_id]
+            self.save_state()
             return True
         return False
 
@@ -192,6 +293,7 @@ class AppState:
             deadlineDate=deadline_date
         )
         self.goals[goal_id] = new_goal
+        self.save_state()
         return new_goal
 
     def update_goal(
@@ -219,11 +321,13 @@ class AppState:
             goal.deadlineDate = deadline_date
         if bank_account_id is not None:
             goal.bankAccountId = bank_account_id
+        self.save_state()
         return goal
 
     def delete_goal(self, goal_id: str) -> bool:
         if goal_id in self.goals:
             del self.goals[goal_id]
+            self.save_state()
             return True
         return False
 
@@ -265,6 +369,7 @@ class AppState:
             creationDate=now
         )
         self.transactions.insert(0, new_tx)
+        self.save_state()
         return new_tx
 
     def get_transaction_by_id(self, tx_id: str) -> Optional[Transaction]:
@@ -330,6 +435,7 @@ class AppState:
                 if tx.destinationBankAccountId and tx.destinationBankAccountId in self.accounts:
                     self.accounts[tx.destinationBankAccountId].balance += tx.amount
                     
+        self.save_state()
         return tx
 
     def delete_transaction(self, tx_id: str) -> bool:
@@ -350,6 +456,7 @@ class AppState:
                     self.accounts[tx.destinationBankAccountId].balance -= tx.amount
                     
         self.transactions.remove(tx)
+        self.save_state()
         return True
 
 # Instância global do estado

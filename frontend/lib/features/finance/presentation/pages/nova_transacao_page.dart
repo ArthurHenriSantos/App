@@ -1,19 +1,19 @@
 import 'dart:ui';
 import 'package:app/core/services/api_service.dart';
-// Removed unused Transaction import
+import 'package:app/features/bank_account/domain/entities/bank_account.dart';
 import 'package:app/models/enums.dart';
 import 'package:app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-class NovaTransacaoPage extends StatefulWidget {
-  const NovaTransacaoPage({super.key});
+class NovaMovimentacaoPage extends StatefulWidget {
+  const NovaMovimentacaoPage({super.key});
 
   @override
-  State<NovaTransacaoPage> createState() => _NovaTransacaoPageState();
+  State<NovaMovimentacaoPage> createState() => _NovaMovimentacaoPageState();
 }
 
-class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
+class _NovaMovimentacaoPageState extends State<NovaMovimentacaoPage> {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
   final _amountController = TextEditingController();
@@ -21,6 +21,49 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
   
   TransactionType _selectedType = TransactionType.expense;
   bool _isLoading = false;
+
+  List<BankAccount> _accounts = [];
+  bool _isLoadingAccounts = true;
+  String? _selectedSourceBankAccountId;
+  String? _selectedDestinationBankAccountId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAccounts();
+  }
+
+  Future<void> _loadAccounts() async {
+    try {
+      final accounts = await ApiService().getAccounts();
+      String? defaultSourceId;
+      try {
+        final primary = await ApiService().getPrimaryAccount();
+        defaultSourceId = primary.id;
+      } catch (_) {
+        if (accounts.isNotEmpty) {
+          defaultSourceId = accounts.first.id;
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _accounts = accounts;
+          _selectedSourceBankAccountId = defaultSourceId;
+          _isLoadingAccounts = false;
+          
+          if (_selectedDestinationBankAccountId == null && accounts.length > 1) {
+            _selectedDestinationBankAccountId = accounts.firstWhere((a) => a.id != defaultSourceId, orElse: () => accounts.last).id;
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingAccounts = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -32,18 +75,47 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
 
   Future<void> _saveTransaction() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_selectedSourceBankAccountId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor, selecione a conta/carteira de origem.'),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+      return;
+    }
+    if (_selectedType == TransactionType.transfer && _selectedDestinationBankAccountId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor, selecione a conta de destino para a transação.'),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+      return;
+    }
+    if (_selectedType == TransactionType.transfer && _selectedDestinationBankAccountId == _selectedSourceBankAccountId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('A conta de destino deve ser diferente da conta de origem.'),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+      return;
+    }
 
     setState(() {
       _isLoading = true;
     });
 
     try {
+      final apiService = ApiService();
       final amount = double.parse(_amountController.text.replaceAll(',', '.'));
-      await ApiService().createTransaction(
-        bankAccountId: 'acc_wallet_01',
+      await apiService.createTransaction(
+        bankAccountId: _selectedSourceBankAccountId!,
         type: _selectedType,
         amount: amount,
         description: _descriptionController.text.trim(),
+        destinationBankAccountId: _selectedType == TransactionType.transfer ? _selectedDestinationBankAccountId : null,
       );
 
       if (mounted) {
@@ -58,7 +130,7 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
                 const Icon(Icons.check_circle_outline_rounded, color: Colors.white),
                 const SizedBox(width: 12),
                 const Text(
-                  'Transação adicionada com sucesso!',
+                  'Movimentação adicionada com sucesso!',
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
               ],
@@ -87,7 +159,7 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Erro ao salvar transação: ${e.toString().replaceAll('Exception: ', '')}',
+                    'Erro ao salvar movimentação: ${e.toString().replaceAll('Exception: ', '')}',
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
@@ -106,13 +178,14 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isExpense = _selectedType == TransactionType.expense;
-    final themeColor = isExpense ? AppTheme.danger : AppTheme.accent;
+    final themeColor = _selectedType == TransactionType.expense
+        ? AppTheme.danger
+        : (_selectedType == TransactionType.income ? AppTheme.accent : AppTheme.primary);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Nova Transação',
+          'Nova Movimentação',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         leading: IconButton(
@@ -130,7 +203,7 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Card Superior de Valor Grande
+                    
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
                       decoration: BoxDecoration(
@@ -141,7 +214,7 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
                       child: Column(
                         children: [
                           const Text(
-                            'VALOR DA TRANSAÇÃO',
+                            'VALOR DA MOVIMENTAÇÃO',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
@@ -205,9 +278,9 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
                       ),
                     ),
                     const SizedBox(height: 32),
-                    // Seletor de Tipo (Receita vs Despesa)
+                    
                     const Text(
-                      'Tipo de Transação',
+                      'Tipo de Movimentação',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -228,11 +301,11 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
                             child: Container(
                               height: 56,
                               decoration: BoxDecoration(
-                                color: isExpense ? AppTheme.danger.withOpacity(0.08) : Colors.white,
+                                color: _selectedType == TransactionType.expense ? AppTheme.danger.withOpacity(0.08) : Colors.white,
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
-                                  color: isExpense ? AppTheme.danger.withOpacity(0.4) : Colors.black.withOpacity(0.06),
-                                  width: isExpense ? 1.5 : 1,
+                                  color: _selectedType == TransactionType.expense ? AppTheme.danger.withOpacity(0.4) : Colors.black.withOpacity(0.06),
+                                  width: _selectedType == TransactionType.expense ? 1.5 : 1,
                                 ),
                               ),
                               child: Row(
@@ -240,14 +313,14 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
                                 children: [
                                   Icon(
                                     Icons.trending_down_rounded,
-                                    color: isExpense ? AppTheme.danger : AppTheme.textMutedLight,
+                                    color: _selectedType == TransactionType.expense ? AppTheme.danger : AppTheme.textMutedLight,
                                   ),
-                                  const SizedBox(width: 10),
-                                  Text(
+                                  const SizedBox(width: 8),
+                                  const Text(
                                     'Despesa',
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      color: isExpense ? AppTheme.danger : AppTheme.textMutedLight,
+                                      color: AppTheme.danger,
                                     ),
                                   ),
                                 ],
@@ -255,7 +328,7 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: InkWell(
                             onTap: () {
@@ -267,11 +340,11 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
                             child: Container(
                               height: 56,
                               decoration: BoxDecoration(
-                                color: !isExpense ? AppTheme.accent.withOpacity(0.08) : Colors.white,
+                                color: _selectedType == TransactionType.income ? AppTheme.accent.withOpacity(0.08) : Colors.white,
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
-                                  color: !isExpense ? AppTheme.accent.withOpacity(0.4) : Colors.black.withOpacity(0.06),
-                                  width: !isExpense ? 1.5 : 1,
+                                  color: _selectedType == TransactionType.income ? AppTheme.accent.withOpacity(0.4) : Colors.black.withOpacity(0.06),
+                                  width: _selectedType == TransactionType.income ? 1.5 : 1,
                                 ),
                               ),
                               child: Row(
@@ -279,14 +352,61 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
                                 children: [
                                   Icon(
                                     Icons.trending_up_rounded,
-                                    color: !isExpense ? AppTheme.accent : AppTheme.textMutedLight,
+                                    color: _selectedType == TransactionType.income ? AppTheme.accent : AppTheme.textMutedLight,
                                   ),
-                                  const SizedBox(width: 10),
-                                  Text(
+                                  const SizedBox(width: 8),
+                                  const Text(
                                     'Receita',
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      color: !isExpense ? AppTheme.accent : AppTheme.textMutedLight,
+                                      color: AppTheme.accent,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: InkWell(
+                            onTap: () {
+                              setState(() {
+                                _selectedType = TransactionType.transfer;
+                                if (_selectedDestinationBankAccountId == _selectedSourceBankAccountId) {
+                                  if (_accounts.length > 1) {
+                                    _selectedDestinationBankAccountId = _accounts.firstWhere((a) => a.id != _selectedSourceBankAccountId, orElse: () => _accounts.last).id;
+                                  } else {
+                                    _selectedDestinationBankAccountId = null;
+                                  }
+                                }
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: _selectedType == TransactionType.transfer ? AppTheme.primary.withOpacity(0.08) : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: _selectedType == TransactionType.transfer ? AppTheme.primary.withOpacity(0.4) : Colors.black.withOpacity(0.06),
+                                  width: _selectedType == TransactionType.transfer ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.swap_horiz_rounded,
+                                    color: _selectedType == TransactionType.transfer ? AppTheme.primary : AppTheme.textMutedLight,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Transação',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: _selectedType == TransactionType.transfer ? AppTheme.primary : AppTheme.textMutedLight,
+                                      fontSize: 13,
                                     ),
                                   ),
                                 ],
@@ -296,10 +416,112 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
                         ),
                       ],
                     ),
+                    
+                    const SizedBox(height: 24),
+                    Text(
+                      _selectedType == TransactionType.transfer ? 'Conta de Origem' : 'Carteira / Conta',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _isLoadingAccounts
+                        ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                        : Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.black.withOpacity(0.06)),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButtonFormField<String?>(
+                                value: _selectedSourceBankAccountId,
+                                decoration: const InputDecoration(border: InputBorder.none),
+                                style: const TextStyle(color: AppTheme.textDark, fontSize: 16),
+                                hint: const Text('Selecione a conta/carteira', style: TextStyle(color: AppTheme.textMutedLight)),
+                                items: _accounts.map((acc) {
+                                  return DropdownMenuItem<String?>(
+                                    value: acc.id,
+                                    child: Text(acc.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  );
+                                }).toList(),
+                                onChanged: (val) {
+                                  setState(() {
+                                    _selectedSourceBankAccountId = val;
+                                    if (_selectedDestinationBankAccountId == _selectedSourceBankAccountId) {
+                                      if (_accounts.length > 1) {
+                                        _selectedDestinationBankAccountId = _accounts.firstWhere((a) => a.id != val, orElse: () => _accounts.last).id;
+                                      } else {
+                                        _selectedDestinationBankAccountId = null;
+                                      }
+                                    }
+                                  });
+                                },
+                                validator: (value) {
+                                  if (value == null) {
+                                    return 'Por favor, selecione a conta/carteira';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ),
+                    if (_selectedType == TransactionType.transfer) ...[
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Conta de Destino',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textDark,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _isLoadingAccounts
+                          ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                          : Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Colors.black.withOpacity(0.06)),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButtonFormField<String?>(
+                                  value: _selectedDestinationBankAccountId,
+                                  decoration: const InputDecoration(border: InputBorder.none),
+                                  style: const TextStyle(color: AppTheme.textDark, fontSize: 16),
+                                  hint: const Text('Selecione a conta destino', style: TextStyle(color: AppTheme.textMutedLight)),
+                                  items: _accounts
+                                      .where((acc) => acc.id != _selectedSourceBankAccountId)
+                                      .map((acc) {
+                                        return DropdownMenuItem<String?>(
+                                          value: acc.id,
+                                          child: Text(acc.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                        );
+                                      }).toList(),
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _selectedDestinationBankAccountId = val;
+                                    });
+                                  },
+                                  validator: (value) {
+                                    if (_selectedType == TransactionType.transfer && value == null) {
+                                      return 'Por favor, selecione a conta de destino';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                            ),
+                    ],
                     const SizedBox(height: 28),
-                    // Campo Descrição
+                    
                     const Text(
-                      'Descrição da Transação',
+                      'Descrição da Movimentação',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -345,7 +567,7 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
                       },
                     ),
                     const SizedBox(height: 40),
-                    // Botão Salvar
+                    
                     Container(
                       height: 56,
                       decoration: BoxDecoration(
@@ -372,14 +594,14 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.check_rounded, color: Colors.white),
-                            SizedBox(width: 10),
+                            const Icon(Icons.check_rounded, color: Colors.white),
+                            const SizedBox(width: 10),
                             Text(
-                              'Salvar Transação',
-                              style: TextStyle(
+                              'Salvar Movimentação',
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
@@ -394,7 +616,7 @@ class _NovaTransacaoPageState extends State<NovaTransacaoPage> {
               ),
             ),
           ),
-          // Overlay de Carregamento
+          
           if (_isLoading)
             Positioned.fill(
               child: BackdropFilter(

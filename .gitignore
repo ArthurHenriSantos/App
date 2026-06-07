@@ -1,0 +1,65 @@
+# Python / FastAPI
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+ENV/local/
+ENV/bin/
+
+# Local databases and states
+state_persistence.json
+backend/state_persistence.json
+*.db
+*.sqlite3
+
+# Logs
+*.log
+pip-log.txt
+crash-log.txt
+
+# PyTest / Coverage
+.pytest_cache/
+.htmlcov/
+.tox/
+.nosexy/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# IDEs / Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swj
+*.swo
+*.swp
+.DS_Store

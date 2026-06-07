@@ -25,7 +25,7 @@ class MainLayout extends StatelessWidget {
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.receipt_long_rounded),
-            label: 'Transações',
+            label: 'Movimentações',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.flag_rounded),

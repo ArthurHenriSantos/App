@@ -1,4 +1,5 @@
 import 'package:app/core/services/api_service.dart';
+import 'package:app/features/bank_account/domain/entities/bank_account.dart';
 import 'package:app/features/transaction/domain/entities/transaction.dart';
 import 'package:app/models/enums.dart';
 import 'package:app/router/app_router.dart';
@@ -7,7 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class TransacoesPage extends StatefulWidget {
-  const TransacoesPage({super.key});
+  final String? initialBankAccountId;
+
+  const TransacoesPage({super.key, this.initialBankAccountId});
 
   @override
   State<TransacoesPage> createState() => _TransacoesPageState();
@@ -21,10 +24,27 @@ class _TransacoesPageState extends State<TransacoesPage> {
   TransactionType? _selectedTypeFilter;
   final TextEditingController _searchController = TextEditingController();
 
+  List<BankAccount> _accounts = [];
+  String? _selectedBankAccountIdFilter;
+  bool _isLoadingAccounts = true;
+
   @override
   void initState() {
     super.initState();
+    _selectedBankAccountIdFilter = widget.initialBankAccountId;
     _loadTransactions();
+    _loadAccounts();
+  }
+
+  @override
+  void didUpdateWidget(covariant TransacoesPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialBankAccountId != oldWidget.initialBankAccountId) {
+      setState(() {
+        _selectedBankAccountIdFilter = widget.initialBankAccountId;
+      });
+      _loadTransactions();
+    }
   }
 
   Future<void> _loadTransactions() async {
@@ -34,7 +54,9 @@ class _TransacoesPageState extends State<TransacoesPage> {
     });
 
     try {
-      final txs = await ApiService().getTransactions();
+      final txs = await ApiService().getTransactions(
+        bankAccountId: _selectedBankAccountIdFilter,
+      );
       if (mounted) {
         setState(() {
           _transactions = txs;
@@ -46,6 +68,24 @@ class _TransacoesPageState extends State<TransacoesPage> {
         setState(() {
           _errorMessage = e.toString().replaceAll('Exception: ', '');
           _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadAccounts() async {
+    try {
+      final accounts = await ApiService().getAccounts();
+      if (mounted) {
+        setState(() {
+          _accounts = accounts;
+          _isLoadingAccounts = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingAccounts = false;
         });
       }
     }
@@ -75,7 +115,7 @@ class _TransacoesPageState extends State<TransacoesPage> {
                 ),
               ),
               Text(
-                'Transações',
+                'Movimentações',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -109,7 +149,7 @@ class _TransacoesPageState extends State<TransacoesPage> {
                 ),
               ),
               Text(
-                'Transações',
+                'Movimentações',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -128,7 +168,7 @@ class _TransacoesPageState extends State<TransacoesPage> {
                 const Icon(Icons.cloud_off_rounded, size: 64, color: AppTheme.danger),
                 const SizedBox(height: 16),
                 Text(
-                  'Erro ao carregar transações:\n$_errorMessage',
+                  'Erro ao carregar movimentações:\n$_errorMessage',
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
@@ -145,7 +185,7 @@ class _TransacoesPageState extends State<TransacoesPage> {
       );
     }
 
-    // Filtragem dinâmica local baseada nos estados locais
+    
     final filteredTransactions = _transactions.where((tx) {
       final matchesSearch = tx.description.toLowerCase().contains(_searchQuery.toLowerCase());
       final matchesType = _selectedTypeFilter == null || tx.type == _selectedTypeFilter;
@@ -167,7 +207,7 @@ class _TransacoesPageState extends State<TransacoesPage> {
               ),
             ),
             Text(
-              'Transações',
+              'Movimentações',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
@@ -180,7 +220,7 @@ class _TransacoesPageState extends State<TransacoesPage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Campo de busca interativo - Atualiza o estado da busca com setState
+            
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: TextField(
@@ -191,7 +231,7 @@ class _TransacoesPageState extends State<TransacoesPage> {
                   });
                 },
                 decoration: InputDecoration(
-                  hintText: 'Pesquisar transação...',
+                  hintText: 'Pesquisar movimentação...',
                   prefixIcon: const Icon(Icons.search, color: AppTheme.textMutedLight),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
@@ -218,7 +258,7 @@ class _TransacoesPageState extends State<TransacoesPage> {
                 ),
               ),
             ),
-            // Chips de Filtro Interativos - Atualiza o tipo de filtro com setState
+            
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: SingleChildScrollView(
@@ -236,8 +276,76 @@ class _TransacoesPageState extends State<TransacoesPage> {
                 ),
               ),
             ),
+            
+            if (!_isLoadingAccounts && _accounts.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.black.withOpacity(0.06)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String?>(
+                      value: _selectedBankAccountIdFilter,
+                      isExpanded: true,
+                      dropdownColor: Colors.white,
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.textMutedLight),
+                      style: const TextStyle(color: AppTheme.textDark, fontSize: 14),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Row(
+                            children: [
+                              Icon(Icons.account_balance_wallet_outlined, color: AppTheme.primary, size: 20),
+                              SizedBox(width: 10),
+                              Text('Todas as Carteiras', style: TextStyle(fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
+                        ..._accounts.map((acc) {
+                          IconData iconData = Icons.credit_card_rounded;
+                          switch (acc.type) {
+                            case BankAccountType.checking: iconData = Icons.account_balance_rounded; break;
+                            case BankAccountType.savings: iconData = Icons.savings_rounded; break;
+                            case BankAccountType.cash: iconData = Icons.payments_rounded; break;
+                            case BankAccountType.creditCard: iconData = Icons.credit_card_rounded; break;
+                          }
+                          return DropdownMenuItem<String?>(
+                            value: acc.id,
+                            child: Row(
+                              children: [
+                                Icon(iconData, color: AppTheme.primary, size: 20),
+                                const SizedBox(width: 10),
+                                Text(acc.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                const Spacer(),
+                                Text(
+                                  'R\$ ${acc.balance.toStringAsFixed(2).replaceAll('.', ',')}',
+                                  style: const TextStyle(
+                                    color: AppTheme.textMutedLight,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                      onChanged: (val) {
+                        setState(() {
+                          _selectedBankAccountIdFilter = val;
+                        });
+                        _loadTransactions();
+                      },
+                    ),
+                  ),
+                ),
+              ),
             const SizedBox(height: 8),
-            // Lista ou Grid de Transações com Responsividade (LayoutBuilder)
+            
             Expanded(
               child: filteredTransactions.isEmpty
                   ? Center(
@@ -251,7 +359,7 @@ class _TransacoesPageState extends State<TransacoesPage> {
                           ),
                           const SizedBox(height: 16),
                           const Text(
-                            'Nenhuma transação encontrada.',
+                            'Nenhuma movimentação encontrada.',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -292,6 +400,7 @@ class _TransacoesPageState extends State<TransacoesPage> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'fab_movimentacoes',
         onPressed: () async {
           await context.push(AppRoutes.novaTransacao);
           _loadTransactions();

@@ -1,8 +1,10 @@
 import 'package:app/core/services/api_service.dart';
 import 'package:app/features/goal/domain/entities/goal.dart';
 import 'package:app/models/enums.dart';
+import 'package:app/router/app_router.dart';
 import 'package:app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class MetasPage extends StatefulWidget {
   const MetasPage({super.key});
@@ -158,13 +160,6 @@ class _MetasPageState extends State<MetasPage> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline, color: AppTheme.primary, size: 28),
-            onPressed: () {},
-          ),
-          const SizedBox(width: 12),
-        ],
       ),
       body: SafeArea(
         child: _goals.isEmpty
@@ -185,8 +180,29 @@ class _MetasPageState extends State<MetasPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 itemCount: _goals.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 14),
-                itemBuilder: (context, index) => _GoalCard(goal: _goals[index]),
+                itemBuilder: (context, index) => _GoalCard(
+                  goal: _goals[index],
+                  onTap: () async {
+                    final result = await context.push(AppRoutes.detalheMeta(_goals[index].id));
+                    if (result == true) {
+                      _loadGoals();
+                    }
+                  },
+                ),
               ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'fab_metas',
+        onPressed: () async {
+          final result = await context.push(AppRoutes.novaMeta);
+          if (result == true) {
+            _loadGoals();
+          }
+        },
+        backgroundColor: AppTheme.primary,
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
       ),
     );
   }
@@ -194,7 +210,8 @@ class _MetasPageState extends State<MetasPage> {
 
 class _GoalCard extends StatelessWidget {
   final Goal goal;
-  const _GoalCard({required this.goal});
+  final VoidCallback onTap;
+  const _GoalCard({required this.goal, required this.onTap});
 
   String _fmt(double v) =>
       'R\$ ${v.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]}.')}';
@@ -205,23 +222,28 @@ class _GoalCard extends StatelessWidget {
     final isCompleted = goal.status == GoalStatus.completed || progress >= 1.0;
     final color = isCompleted ? AppTheme.accent : AppTheme.primary;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: isCompleted ? const Color(0xFFECFDF5) : Colors.white, // Light green for completed
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isCompleted ? AppTheme.accent.withOpacity(0.25) : Colors.black.withOpacity(0.04),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: isCompleted ? const Color(0xFFECFDF5) : Colors.white, 
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isCompleted ? AppTheme.accent.withOpacity(0.25) : Colors.black.withOpacity(0.04),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
+          child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -273,13 +295,13 @@ class _GoalCard extends StatelessWidget {
                     color: AppTheme.textDark,
                   ),
                 ),
-                // Uso de Spacer para empurrar o ícone para a direita
+                
                 const Spacer(),
                 const Icon(Icons.stars_rounded, color: AppTheme.warning, size: 28),
               ],
             ),
           ] else ...[
-            // Barra de progresso com ClipRRect
+            
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: LinearProgressIndicator(
@@ -301,7 +323,7 @@ class _GoalCard extends StatelessWidget {
                     color: AppTheme.textDark,
                   ),
                 ),
-                // Uso de Flexible para evitar que a meta ultrapasse o tamanho da linha
+                
                 Flexible(
                   child: Text(
                     'meta: ${_fmt(goal.targetAmount)}',
@@ -317,6 +339,8 @@ class _GoalCard extends StatelessWidget {
           ],
         ],
       ),
-    );
+    ),
+  ),
+);
   }
 }
