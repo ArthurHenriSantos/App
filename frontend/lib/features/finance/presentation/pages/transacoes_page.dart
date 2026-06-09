@@ -404,6 +404,7 @@ class _TransacoesPageState extends State<TransacoesPage> {
         onPressed: () async {
           await context.push(AppRoutes.novaTransacao);
           _loadTransactions();
+          _loadAccounts(); 
         },
         backgroundColor: AppTheme.primary,
         elevation: 4,

@@ -20,11 +20,40 @@ class _DashboardPageState extends State<DashboardPage> {
   List<BankAccount> _accounts = [];
   bool _isLoading = true;
   String? _errorMessage;
+  GoRouter? _router;
+  bool _isDashboardVisible = false;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_router == null) {
+      _router = GoRouter.of(context);
+      _router!.routerDelegate.addListener(_handleRouteChange);
+      _isDashboardVisible = true;
+    }
+  }
+
+  @override
+  void dispose() {
+    _router?.routerDelegate.removeListener(_handleRouteChange);
+    super.dispose();
+  }
+
+  void _handleRouteChange() {
+    if (!mounted) return;
+    final currentPath =
+        _router!.routerDelegate.currentConfiguration.uri.path;
+    final nowVisible = currentPath == AppRoutes.dashboard;
+    if (nowVisible && !_isDashboardVisible && !_isLoading) {
+      _loadData();
+    }
+    _isDashboardVisible = nowVisible;
   }
 
   Future<void> _loadData() async {
@@ -801,37 +830,42 @@ class _DashboardPageState extends State<DashboardPage> {
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: isCompact ? 12 : 20,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                height: 180,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: accounts.length + 1,
-                  separatorBuilder: (_, __) => const SizedBox(width: 16),
-                  itemBuilder: (context, index) {
-                    if (index == accounts.length) {
-                      return _AddAccountCard(onTap: _showCreateAccountBottomSheet);
-                    }
-                    final account = accounts[index];
-                    return _SavingsCreditCard(
-                      account: account,
-                      onTap: () => _showAccountActionsBottomSheet(account),
-                    );
-                  },
+        child: RefreshIndicator(
+          onRefresh: _loadData,
+          color: AppTheme.primary,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: isCompact ? 12 : 20,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  height: 180,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: accounts.length + 1,
+                    separatorBuilder: (_, __) => const SizedBox(width: 16),
+                    itemBuilder: (context, index) {
+                      if (index == accounts.length) {
+                        return _AddAccountCard(onTap: _showCreateAccountBottomSheet);
+                      }
+                      final account = accounts[index];
+                      return _SavingsCreditCard(
+                        account: account,
+                        onTap: () => _showAccountActionsBottomSheet(account),
+                      );
+                    },
+                  ),
                 ),
-              ),
-              SizedBox(height: isCompact ? 16 : 24),
-              const _WeeklyChartSection(),
-              SizedBox(height: isCompact ? 16 : 24),
-              const _HabitsSection(),
-            ],
+                SizedBox(height: isCompact ? 16 : 24),
+                const _WeeklyChartSection(),
+                SizedBox(height: isCompact ? 16 : 24),
+                const _HabitsSection(),
+              ],
+            ),
           ),
         ),
       ),
