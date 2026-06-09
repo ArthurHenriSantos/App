@@ -1,4 +1,5 @@
 import 'package:app/core/services/api_service.dart';
+import 'package:app/features/bank_account/domain/entities/bank_account.dart';
 import 'package:app/features/transaction/domain/entities/transaction.dart';
 import 'package:app/models/enums.dart';
 import 'package:app/theme/app_theme.dart';
@@ -16,6 +17,7 @@ class TransactionDetailPage extends StatefulWidget {
 
 class _TransactionDetailPageState extends State<TransactionDetailPage> {
   Transaction? _transaction;
+  List<BankAccount> _accounts = [];
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -33,9 +35,11 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
 
     try {
       final tx = await ApiService().getTransactionById(widget.transactionId);
+      final accounts = await ApiService().getAccounts();
       if (mounted) {
         setState(() {
           _transaction = tx;
+          _accounts = accounts;
           _isLoading = false;
         });
       }
@@ -101,12 +105,34 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
       );
     }
 
+    final isTransfer = tx.type == TransactionType.transfer;
     final isIncome = tx.type == TransactionType.income;
-    final themeColor = isIncome ? AppTheme.accent : AppTheme.danger;
-    final icon = isIncome ? Icons.trending_up_rounded : Icons.trending_down_rounded;
+    final themeColor = isTransfer
+        ? AppTheme.primary
+        : (isIncome ? AppTheme.accent : AppTheme.danger);
+    final icon = isTransfer
+        ? Icons.swap_horiz_rounded
+        : (isIncome ? Icons.trending_up_rounded : Icons.trending_down_rounded);
     final formattedAmount = 'R\$ ${tx.amount.toStringAsFixed(2).replaceAll('.', ',')}';
     final formattedDate =
         '${tx.transactionDate.day.toString().padLeft(2, '0')}/${tx.transactionDate.month.toString().padLeft(2, '0')}/${tx.transactionDate.year} às ${tx.transactionDate.hour.toString().padLeft(2, '0')}:${tx.transactionDate.minute.toString().padLeft(2, '0')}';
+
+    BankAccount? sourceAccount;
+    BankAccount? destAccount;
+    for (var acc in _accounts) {
+      if (acc.id == tx.bankAccountId) sourceAccount = acc;
+      if (acc.id == tx.destinationBankAccountId) destAccount = acc;
+    }
+    
+    final sourceName = sourceAccount?.name ?? 'Conta de Origem';
+    final destName = destAccount?.name ?? 'Conta de Destino';
+
+    String amountStr = '';
+    if (isTransfer) {
+      amountStr = '⇄ $formattedAmount';
+    } else {
+      amountStr = isIncome ? '+ $formattedAmount' : '- $formattedAmount';
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.bgLight,
@@ -124,7 +150,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [
-            // Card Principal Premium de Visualização
+            // Card Premium de Visualização
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 24),
@@ -154,7 +180,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
                   const SizedBox(height: 20),
                   // Valor de Destaque
                   Text(
-                    isIncome ? '+ $formattedAmount' : '- $formattedAmount',
+                    amountStr,
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
@@ -163,7 +189,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    tx.description,
+                    tx.description.isNotEmpty ? tx.description : (isTransfer ? 'Transferência' : (isIncome ? 'Receita' : 'Despesa')),
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 18,
@@ -187,12 +213,19 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
                   ),
                   _buildDetailRow(
                     label: 'Tipo de Transação',
-                    value: isIncome ? 'Receita' : 'Despesa',
+                    value: isTransfer
+                        ? 'Transferência'
+                        : (isIncome ? 'Receita' : 'Despesa'),
                   ),
                   _buildDetailRow(
-                    label: 'Conta de Origem',
-                    value: 'Carteira Principal',
+                    label: isTransfer ? 'Conta de Origem' : 'Carteira / Conta',
+                    value: sourceName,
                   ),
+                  if (isTransfer)
+                    _buildDetailRow(
+                      label: 'Conta de Destino',
+                      value: destName,
+                    ),
                   _buildDetailRow(
                     label: 'ID da Transação',
                     value: tx.id,

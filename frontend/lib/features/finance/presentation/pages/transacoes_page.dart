@@ -382,7 +382,11 @@ class _TransacoesPageState extends State<TransacoesPage> {
                             ),
                             itemCount: filteredTransactions.length,
                             itemBuilder: (context, index) =>
-                                _TransactionTile(tx: filteredTransactions[index]),
+                                _TransactionTile(
+                                  tx: filteredTransactions[index],
+                                  currentBankAccountId: _selectedBankAccountIdFilter,
+                                  accounts: _accounts,
+                                ),
                           );
                         } else {
                           return ListView.separated(
@@ -390,7 +394,11 @@ class _TransacoesPageState extends State<TransacoesPage> {
                             itemCount: filteredTransactions.length,
                             separatorBuilder: (_, __) => const SizedBox(height: 10),
                             itemBuilder: (context, index) =>
-                                _TransactionTile(tx: filteredTransactions[index]),
+                                _TransactionTile(
+                                  tx: filteredTransactions[index],
+                                  currentBankAccountId: _selectedBankAccountIdFilter,
+                                  accounts: _accounts,
+                                ),
                           );
                         }
                       },
@@ -443,17 +451,70 @@ class _TransacoesPageState extends State<TransacoesPage> {
 
 class _TransactionTile extends StatelessWidget {
   final Transaction tx;
-  const _TransactionTile({required this.tx});
+  final String? currentBankAccountId;
+  final List<BankAccount> accounts;
+
+  const _TransactionTile({
+    required this.tx,
+    required this.currentBankAccountId,
+    required this.accounts,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isIncome = tx.type == TransactionType.income;
-    final color = isIncome ? AppTheme.accent : AppTheme.danger;
-    final icon = isIncome ? Icons.trending_up : Icons.trending_down;
+    final isTransfer = tx.type == TransactionType.transfer;
+    
+    // Determine if it is a debit (decrement) or credit (increment)
+    bool isIncome = tx.type == TransactionType.income;
+    if (isTransfer && currentBankAccountId != null) {
+      if (tx.destinationBankAccountId == currentBankAccountId) {
+        isIncome = true; // It's incoming to the filtered account
+      }
+    }
 
-    final amountStr = isIncome
-        ? '+ R\$ ${tx.amount.toStringAsFixed(2).replaceAll('.', ',')}'
-        : '- R\$ ${tx.amount.toStringAsFixed(2).replaceAll('.', ',')}';
+    final color = isTransfer
+        ? (currentBankAccountId == null
+            ? AppTheme.primary
+            : (isIncome ? AppTheme.accent : AppTheme.danger))
+        : (isIncome ? AppTheme.accent : AppTheme.danger);
+
+    final icon = isTransfer
+        ? Icons.swap_horiz_rounded
+        : (isIncome ? Icons.trending_up : Icons.trending_down);
+
+    String amountStr;
+    if (isTransfer && currentBankAccountId == null) {
+      amountStr = 'R\$ ${tx.amount.toStringAsFixed(2).replaceAll('.', ',')}';
+    } else {
+      amountStr = isIncome
+          ? '+ R\$ ${tx.amount.toStringAsFixed(2).replaceAll('.', ',')}'
+          : '- R\$ ${tx.amount.toStringAsFixed(2).replaceAll('.', ',')}';
+    }
+
+    // Lookup accounts for clear description/subtitle
+    BankAccount? sourceAccount;
+    BankAccount? destAccount;
+    for (var acc in accounts) {
+      if (acc.id == tx.bankAccountId) sourceAccount = acc;
+      if (acc.id == tx.destinationBankAccountId) destAccount = acc;
+    }
+
+    String subtitleText = '';
+    if (isTransfer) {
+      final sourceName = sourceAccount?.name ?? 'Origem';
+      final destName = destAccount?.name ?? 'Destino';
+      
+      if (currentBankAccountId == null) {
+        subtitleText = '$sourceName ➔ $destName';
+      } else if (tx.destinationBankAccountId == currentBankAccountId) {
+        subtitleText = 'Recebido de $sourceName';
+      } else {
+        subtitleText = 'Enviado para $destName';
+      }
+    }
+
+    final dateStr = '${tx.transactionDate.day.toString().padLeft(2, '0')}/${tx.transactionDate.month.toString().padLeft(2, '0')}/${tx.transactionDate.year}';
+    final subtext = subtitleText.isNotEmpty ? '$subtitleText • $dateStr' : dateStr;
 
     return Material(
       color: Colors.transparent,
@@ -465,62 +526,62 @@ class _TransactionTile extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  tx.description,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textDark,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  '${tx.transactionDate.day.toString().padLeft(2, '0')}/${tx.transactionDate.month.toString().padLeft(2, '0')}/${tx.transactionDate.year}',
-                  style: const TextStyle(fontSize: 12, color: AppTheme.textMutedLight),
+                child: Icon(icon, color: color, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      tx.description.isNotEmpty ? tx.description : (isTransfer ? 'Transferência' : (isIncome ? 'Receita' : 'Despesa')),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textDark,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtext,
+                      style: const TextStyle(fontSize: 12, color: AppTheme.textMutedLight),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                amountStr,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Text(
-            amountStr,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
+        ),
       ),
-    ),
-  ),
-);
+    );
   }
 }
