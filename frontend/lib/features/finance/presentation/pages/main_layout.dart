@@ -1,3 +1,4 @@
+import 'package:app/features/finance/presentation/pages/metas_page.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -17,6 +18,9 @@ class MainLayout extends StatelessWidget {
             index,
             initialLocation: index == navigationShell.currentIndex,
           );
+          if (index == 2) {
+            MetasPage.refresh();
+          }
         },
         items: const [
           BottomNavigationBarItem(

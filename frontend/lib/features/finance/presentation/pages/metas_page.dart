@@ -9,6 +9,12 @@ import 'package:go_router/go_router.dart';
 class MetasPage extends StatefulWidget {
   const MetasPage({super.key});
 
+  static final metasRefreshNotifier = ValueNotifier<int>(0);
+
+  static void refresh() {
+    metasRefreshNotifier.value++;
+  }
+
   @override
   State<MetasPage> createState() => _MetasPageState();
 }
@@ -22,6 +28,13 @@ class _MetasPageState extends State<MetasPage> {
   void initState() {
     super.initState();
     _loadGoals();
+    MetasPage.metasRefreshNotifier.addListener(_loadGoals);
+  }
+
+  @override
+  void dispose() {
+    MetasPage.metasRefreshNotifier.removeListener(_loadGoals);
+    super.dispose();
   }
 
   Future<void> _loadGoals() async {

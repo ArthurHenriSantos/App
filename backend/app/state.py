@@ -271,6 +271,8 @@ class AppState:
             for goal in self.goals.values():
                 if goal.bankAccountId == acc_id:
                     goal.bankAccountId = None
+                    goal.currentAmount = 0.0
+                    goal.status = GoalStatus.inProgress
             del self.accounts[acc_id]
             self.save_state()
             return True
@@ -321,6 +323,14 @@ class AppState:
             goal.deadlineDate = deadline_date
         if bank_account_id is not None:
             goal.bankAccountId = bank_account_id
+                    
+        # Check target vs current amount to update status automatically
+        if goal.currentAmount >= goal.targetAmount:
+            goal.status = GoalStatus.completed
+        else:
+            if goal.status == GoalStatus.completed:
+                goal.status = GoalStatus.inProgress
+
         self.save_state()
         return goal
 
@@ -355,6 +365,25 @@ class AppState:
             account.balance -= amount
             if destination_bank_account_id and destination_bank_account_id in self.accounts:
                 self.accounts[destination_bank_account_id].balance += amount
+                
+        # Atualiza as metas vinculadas às contas envolvidas
+        for goal in self.goals.values():
+            if goal.bankAccountId == bank_account_id:
+                if type_ == TransactionType.income:
+                    goal.currentAmount += amount
+                elif type_ == TransactionType.expense or type_ == TransactionType.transfer:
+                    goal.currentAmount -= amount
+            if type_ == TransactionType.transfer and destination_bank_account_id and goal.bankAccountId == destination_bank_account_id:
+                goal.currentAmount += amount
+                
+            # Garante limites e status consistentes
+            if goal.currentAmount < 0:
+                goal.currentAmount = 0.0
+            if goal.currentAmount >= goal.targetAmount:
+                goal.status = GoalStatus.completed
+            else:
+                if goal.status == GoalStatus.completed:
+                    goal.status = GoalStatus.inProgress
                 
         now = datetime.now()
         new_tx = Transaction(
@@ -400,7 +429,7 @@ class AppState:
         if not tx:
             return None
             
-        # 1. Reverter efeito de saldo antigo
+        # 1. Reverter efeito de saldo e metas antigo
         acc = self.accounts.get(tx.bankAccountId)
         if acc:
             if tx.type == TransactionType.income:
@@ -411,6 +440,19 @@ class AppState:
                 acc.balance += tx.amount
                 if tx.destinationBankAccountId and tx.destinationBankAccountId in self.accounts:
                     self.accounts[tx.destinationBankAccountId].balance -= tx.amount
+            
+            # Reverte o efeito nas metas vinculadas
+            for goal in self.goals.values():
+                if goal.bankAccountId == tx.bankAccountId:
+                    if tx.type == TransactionType.income:
+                        goal.currentAmount -= tx.amount
+                    elif tx.type == TransactionType.expense or tx.type == TransactionType.transfer:
+                        goal.currentAmount += tx.amount
+                if tx.type == TransactionType.transfer and tx.destinationBankAccountId and goal.bankAccountId == tx.destinationBankAccountId:
+                    goal.currentAmount -= tx.amount
+                
+                if goal.currentAmount < 0:
+                    goal.currentAmount = 0.0
                     
         # 2. Aplicar modificações
         if amount is not None:
@@ -424,7 +466,7 @@ class AppState:
         if transaction_category_id is not None:
             tx.transactionCategoryId = transaction_category_id
             
-        # 3. Aplicar efeito de saldo novo
+        # 3. Aplicar efeito de saldo e metas novo
         if acc:
             if tx.type == TransactionType.income:
                 acc.balance += tx.amount
@@ -434,6 +476,25 @@ class AppState:
                 acc.balance -= tx.amount
                 if tx.destinationBankAccountId and tx.destinationBankAccountId in self.accounts:
                     self.accounts[tx.destinationBankAccountId].balance += tx.amount
+            
+            # Aplica o novo efeito nas metas vinculadas
+            for goal in self.goals.values():
+                if goal.bankAccountId == tx.bankAccountId:
+                    if tx.type == TransactionType.income:
+                        goal.currentAmount += tx.amount
+                    elif tx.type == TransactionType.expense or tx.type == TransactionType.transfer:
+                        goal.currentAmount -= tx.amount
+                if tx.type == TransactionType.transfer and tx.destinationBankAccountId and goal.bankAccountId == tx.destinationBankAccountId:
+                    goal.currentAmount += tx.amount
+                
+                # Garante limites e status consistentes
+                if goal.currentAmount < 0:
+                    goal.currentAmount = 0.0
+                if goal.currentAmount >= goal.targetAmount:
+                    goal.status = GoalStatus.completed
+                else:
+                    if goal.status == GoalStatus.completed:
+                        goal.status = GoalStatus.inProgress
                     
         self.save_state()
         return tx
@@ -443,7 +504,7 @@ class AppState:
         if not tx:
             return False
             
-        # Reverte efeito de saldo
+        # Reverte efeito de saldo e metas
         acc = self.accounts.get(tx.bankAccountId)
         if acc:
             if tx.type == TransactionType.income:
@@ -454,6 +515,25 @@ class AppState:
                 acc.balance += tx.amount
                 if tx.destinationBankAccountId and tx.destinationBankAccountId in self.accounts:
                     self.accounts[tx.destinationBankAccountId].balance -= tx.amount
+            
+            # Reverte o efeito nas metas vinculadas
+            for goal in self.goals.values():
+                if goal.bankAccountId == tx.bankAccountId:
+                    if tx.type == TransactionType.income:
+                        goal.currentAmount -= tx.amount
+                    elif tx.type == TransactionType.expense or tx.type == TransactionType.transfer:
+                        goal.currentAmount += tx.amount
+                if tx.type == TransactionType.transfer and tx.destinationBankAccountId and goal.bankAccountId == tx.destinationBankAccountId:
+                    goal.currentAmount -= tx.amount
+                
+                # Garante limites e status consistentes
+                if goal.currentAmount < 0:
+                    goal.currentAmount = 0.0
+                if goal.currentAmount >= goal.targetAmount:
+                    goal.status = GoalStatus.completed
+                else:
+                    if goal.status == GoalStatus.completed:
+                        goal.status = GoalStatus.inProgress
                     
         self.transactions.remove(tx)
         self.save_state()
