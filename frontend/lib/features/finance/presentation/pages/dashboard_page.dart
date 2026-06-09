@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:app/core/services/api_service.dart';
 import 'package:app/features/auth/domain/entities/user.dart';
 import 'package:app/features/bank_account/domain/entities/bank_account.dart';
+import 'package:app/features/transaction/domain/entities/transaction.dart';
+import 'package:app/features/goal/domain/entities/goal.dart';
 import 'package:app/models/enums.dart';
 import 'package:app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +20,9 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   User? _user;
   List<BankAccount> _accounts = [];
+  List<Transaction> _allTransactions = [];
+  List<Transaction> _recentTransactions = [];
+  List<Goal> _goals = [];
   bool _isLoading = true;
   String? _errorMessage;
   GoRouter? _router;
@@ -66,11 +71,16 @@ class _DashboardPageState extends State<DashboardPage> {
       final apiService = ApiService();
       final user = await apiService.getMe();
       final accounts = await apiService.getAccounts();
+      final transactions = await apiService.getTransactions();
+      final goals = await apiService.getGoals();
 
       if (mounted) {
         setState(() {
           _user = user;
           _accounts = accounts;
+          _allTransactions = transactions;
+          _recentTransactions = transactions.take(3).toList();
+          _goals = goals.where((g) => g.status == GoalStatus.inProgress).take(2).toList();
           _isLoading = false;
         });
       }
@@ -861,9 +871,20 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
                 ),
                 SizedBox(height: isCompact ? 16 : 24),
-                const _WeeklyChartSection(),
+                _WeeklyChartSection(transactions: _allTransactions),
+                if (_recentTransactions.isNotEmpty) ...[
+                  SizedBox(height: isCompact ? 16 : 24),
+                  _RecentTransactionsSection(
+                    transactions: _recentTransactions,
+                    accounts: accounts,
+                  ),
+                ],
+                if (_goals.isNotEmpty) ...[
+                  SizedBox(height: isCompact ? 16 : 24),
+                  _GoalsSection(goals: _goals),
+                ],
                 SizedBox(height: isCompact ? 16 : 24),
-                const _HabitsSection(),
+                _HabitsSection(transactions: _allTransactions),
               ],
             ),
           ),
@@ -1072,13 +1093,48 @@ class _AddAccountCard extends StatelessWidget {
 }
 
 class _WeeklyChartSection extends StatelessWidget {
-  const _WeeklyChartSection();
+  final List<Transaction> transactions;
+  const _WeeklyChartSection({required this.transactions});
 
-  final List<double> values = const [0.4, 0.6, 0.5, 0.7, 0.9, 0.8, 1.0];
-  final List<String> days = const ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+  List<double> getDailyValues() {
+    final now = DateTime.now();
+    final dailyExpenses = List<double>.filled(7, 0.0);
+    
+    for (int i = 0; i < 7; i++) {
+      final date = now.subtract(Duration(days: 6 - i));
+      double total = 0.0;
+      for (var tx in transactions) {
+        if (tx.type == TransactionType.expense &&
+            tx.transactionDate.year == date.year &&
+            tx.transactionDate.month == date.month &&
+            tx.transactionDate.day == date.day) {
+          total += tx.amount;
+        }
+      }
+      dailyExpenses[i] = total;
+    }
+    
+    final maxExpense = dailyExpenses.reduce((curr, next) => curr > next ? curr : next);
+    if (maxExpense == 0) {
+      return List<double>.filled(7, 0.1);
+    }
+    return dailyExpenses.map((e) => 0.1 + 0.9 * (e / maxExpense)).toList();
+  }
+
+  List<String> getDayLabels() {
+    final now = DateTime.now();
+    final weekdays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+    return List.generate(7, (i) {
+      final date = now.subtract(Duration(days: 6 - i));
+      return weekdays[date.weekday % 7];
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final values = getDailyValues();
+    final days = getDayLabels();
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1096,7 +1152,7 @@ class _WeeklyChartSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'ECONOMIA SEMANAL',
+            'GASTOS DOS ÚLTIMOS 7 DIAS',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.bold,
@@ -1156,15 +1212,71 @@ class _WeeklyChartSection extends StatelessWidget {
 }
 
 class _HabitsSection extends StatelessWidget {
-  const _HabitsSection();
+  final List<Transaction> transactions;
+
+  const _HabitsSection({required this.transactions});
+
+  int getNoSpendDays() {
+    final now = DateTime.now();
+    int noSpendCount = 0;
+
+    for (int i = 0; i < 7; i++) {
+      final date = now.subtract(Duration(days: 6 - i));
+      bool hasExpense = false;
+      for (var tx in transactions) {
+        if (tx.type == TransactionType.expense &&
+            tx.transactionDate.year == date.year &&
+            tx.transactionDate.month == date.month &&
+            tx.transactionDate.day == date.day) {
+          hasExpense = true;
+          break;
+        }
+      }
+      if (!hasExpense) {
+        noSpendCount++;
+      }
+    }
+    return noSpendCount;
+  }
+
+  double getWeeklySavings() {
+    final now = DateTime.now();
+    double income = 0.0;
+    double expense = 0.0;
+
+    for (int i = 0; i < 7; i++) {
+      final date = now.subtract(Duration(days: 6 - i));
+      for (var tx in transactions) {
+        if (tx.transactionDate.year == date.year &&
+            tx.transactionDate.month == date.month &&
+            tx.transactionDate.day == date.day) {
+          if (tx.type == TransactionType.income) {
+            income += tx.amount;
+          } else if (tx.type == TransactionType.expense) {
+            expense += tx.amount;
+          }
+        }
+      }
+    }
+    return income - expense;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    final noSpendDays = getNoSpendDays();
+    final weeklySavings = getWeeklySavings();
+    
+    final savingsSign = weeklySavings > 0 ? '+ ' : (weeklySavings < 0 ? '- ' : '');
+    final savingsText = '${savingsSign}R\$ ${weeklySavings.abs().toStringAsFixed(2).replaceAll('.', ',')}';
+    
+    final savingsColor = weeklySavings >= 0 ? AppTheme.accent : AppTheme.danger;
+    final savingsIcon = weeklySavings >= 0 ? Icons.savings_rounded : Icons.trending_down_rounded;
+
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'HÁBITOS EM FOCO',
+        const Text(
+          'INSIGHTS FINANCEIROS',
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.bold,
@@ -1172,24 +1284,24 @@ class _HabitsSection extends StatelessWidget {
             letterSpacing: 1.1,
           ),
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
               child: _HabitCard(
-                icon: Icons.smoke_free,
-                label: 'Sem Cigarros',
-                days: 8,
+                icon: Icons.money_off_rounded,
+                label: 'Sem Gastos (7d)',
+                value: '$noSpendDays ${noSpendDays == 1 ? 'dia' : 'dias'}',
                 color: AppTheme.primary,
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: _HabitCard(
-                icon: Icons.no_drinks,
-                label: 'Sem Álcool',
-                days: 12,
-                color: AppTheme.secondary,
+                icon: savingsIcon,
+                label: 'Economia (7d)',
+                value: savingsText,
+                color: savingsColor,
               ),
             ),
           ],
@@ -1202,13 +1314,13 @@ class _HabitsSection extends StatelessWidget {
 class _HabitCard extends StatelessWidget {
   final IconData icon;
   final String label;
-  final int days;
+  final String value;
   final Color color;
 
   const _HabitCard({
     required this.icon,
     required this.label,
-    required this.days,
+    required this.value,
     required this.color,
   });
 
@@ -1245,18 +1357,191 @@ class _HabitCard extends StatelessWidget {
               color: AppTheme.textMutedLight,
               fontWeight: FontWeight.w500,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 4),
-          Text(
-            '$days dias',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.textDark,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textDark,
+              ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _GoalsSection extends StatelessWidget {
+  final List<Goal> goals;
+  const _GoalsSection({required this.goals});
+
+  @override
+  Widget build(BuildContext context) {
+    if (goals.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'METAS EM FOCO',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.primary,
+            letterSpacing: 1.1,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Column(
+          children: goals.map((goal) {
+            final progress = (goal.currentAmount / goal.targetAmount).clamp(0.0, 1.0);
+            final percent = (progress * 100).toStringAsFixed(0);
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              color: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: Colors.black.withOpacity(0.04)),
+              ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withOpacity(0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.flag_rounded, color: AppTheme.primary, size: 24),
+                ),
+                title: Text(
+                  goal.name,
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark),
+                ),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 6,
+                          backgroundColor: AppTheme.primary.withOpacity(0.12),
+                          color: AppTheme.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'R\$ ${goal.currentAmount.toStringAsFixed(0)} / R\$ ${goal.targetAmount.toStringAsFixed(0)}',
+                        style: const TextStyle(fontSize: 12, color: AppTheme.textMutedLight),
+                      ),
+                    ],
+                  ),
+                ),
+                trailing: Text(
+                  '$percent%',
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary, fontSize: 14),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+class _RecentTransactionsSection extends StatelessWidget {
+  final List<Transaction> transactions;
+  final List<BankAccount> accounts;
+  const _RecentTransactionsSection({required this.transactions, required this.accounts});
+
+  @override
+  Widget build(BuildContext context) {
+    if (transactions.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'ÚLTIMAS MOVIMENTAÇÕES',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.primary,
+            letterSpacing: 1.1,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Column(
+          children: transactions.map((tx) {
+            final isIncome = tx.type == TransactionType.income;
+            final isTransfer = tx.type == TransactionType.transfer;
+            
+            final color = isTransfer
+                ? AppTheme.primary
+                : (isIncome ? AppTheme.accent : AppTheme.danger);
+                
+            final icon = isTransfer
+                ? Icons.swap_horiz_rounded
+                : (isIncome ? Icons.trending_up : Icons.trending_down);
+                
+            final amountStr = isTransfer
+                ? 'R\$ ${tx.amount.toStringAsFixed(2).replaceAll('.', ',')}'
+                : (isIncome
+                    ? '+ R\$ ${tx.amount.toStringAsFixed(2).replaceAll('.', ',')}'
+                    : '- R\$ ${tx.amount.toStringAsFixed(2).replaceAll('.', ',')}');
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              color: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: Colors.black.withOpacity(0.04)),
+              ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                title: Text(
+                  tx.description.isNotEmpty
+                      ? tx.description
+                      : (isTransfer ? 'Transferência' : (isIncome ? 'Receita' : 'Despesa')),
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark, fontSize: 14),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  '${tx.transactionDate.day.toString().padLeft(2, '0')}/${tx.transactionDate.month.toString().padLeft(2, '0')}/${tx.transactionDate.year}',
+                  style: const TextStyle(fontSize: 11, color: AppTheme.textMutedLight),
+                ),
+                trailing: Text(
+                  amountStr,
+                  style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14),
+                ),
+                onTap: () {
+                  context.push(AppRoutes.detalheTransacao(tx.id));
+                },
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 }
